@@ -3,21 +3,88 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>互動式旅遊足跡與闖關地圖</title>
+  <title>城市尋寶｜實境解謎探索地圖</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; font-family: sans-serif; }
-    #header { padding: 12px 16px; background: #fff8eb; border-bottom: 1px solid #f0dfc2; display: flex; justify-content: space-between; align-items: center; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: #fdfaf5; color: #4a3f35; }
+    
+    /* 頂部狀態列 */
+    #header {
+      padding: 12px 16px; background: #fff8eb; border-bottom: 2px solid #f3d9b1;
+      display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1000;
+    }
+    .title { font-weight: bold; font-size: 16px; color: #92400e; }
+    .badge { background: #fef3c7; border: 1px solid #f59e0b; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; color: #b45309; }
+    
     #map { height: calc(100vh - 54px); width: 100%; }
-    .badge { font-weight: bold; color: #b45309; }
+
+    /* 底部／中央解謎任務卡片 */
+    #quest-modal {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      width: 92%; max-width: 440px; background: #ffffff; border-radius: 16px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.18); padding: 20px; z-index: 2000;
+      border: 2px solid #fde68a; display: none; max-height: 80vh; overflow-y: auto;
+    }
+    .quest-tag { display: inline-block; background: #ffedd5; color: #c2410c; font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 6px; margin-bottom: 6px; }
+    .quest-title { margin: 0 0 10px 0; font-size: 19px; color: #78350f; }
+    .quest-story { font-size: 14px; line-height: 1.6; background: #fffbeb; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #f59e0b; }
+    .quest-question { font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #1f2937; }
+    
+    .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
+    input[type="text"] {
+      flex: 1; padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 15px; outline: none;
+    }
+    input[type="text"]:focus { border-color: #f59e0b; }
+    
+    button { border: none; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    .btn-submit { background: #f59e0b; color: white; }
+    .btn-submit:hover { background: #d97706; }
+    .btn-hint { background: #f3f4f6; color: #4b5563; font-size: 13px; padding: 6px 10px; }
+    .btn-nav { background: #e0f2fe; color: #0369a1; font-size: 13px; padding: 6px 10px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; }
+    .btn-close { position: absolute; top: 14px; right: 14px; background: transparent; color: #9ca3af; font-size: 18px; padding: 4px 8px; }
+    
+    #hint-box { font-size: 13px; color: #b45309; background: #fef3c7; padding: 8px 10px; border-radius: 6px; margin-top: 8px; display: none; }
+    #city-lore { font-size: 14px; line-height: 1.6; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px; border-radius: 8px; margin-top: 12px; display: none; }
+    .reset-btn { font-size: 11px; color: #9ca3af; background: none; text-decoration: underline; margin-left: 8px; padding: 0; }
   </style>
 </head>
 <body>
+
   <div id="header">
-    <span>🗺️ 城市探索闖關地圖</span>
-    <span class="badge">已解鎖：<span id="score">0</span> / <span id="total">0</span> 關</span>
+    <div>
+      <span class="title">🧭 中壢時光尋寶記</span>
+      <button class="reset-btn" onclick="resetGame()">重玩</button>
+    </div>
+    <span class="badge">進度：<span id="score">0</span> / <span id="total">0</span> 關</span>
   </div>
+
   <div id="map"></div>
+
+  <!-- 解謎任務卡片 -->
+  <div id="quest-modal">
+    <button class="btn-close" onclick="closeModal()">✕</button>
+    <div class="quest-tag" id="q-stage">關卡 1</div>
+    <h3 class="quest-title" id="q-title">關卡名稱</h3>
+    <div style="margin-bottom: 10px;">
+      <a id="q-nav" class="btn-nav" href="#" target="_blank">📍 開啟 Google 地圖導航到此處</a>
+    </div>
+    <div class="quest-story" id="q-story">情境故事...</div>
+    <div class="quest-question" id="q-question">謎題題目...</div>
+
+    <div class="input-group" id="answer-area">
+      <input type="text" id="q-input" placeholder="請觀察現場後輸入答案..." />
+      <button class="btn-submit" onclick="checkAnswer()">解鎖</button>
+    </div>
+
+    <div>
+      <button class="btn-hint" id="hint-btn" onclick="showNextHint()">💡 需要提示嗎？</button>
+    </div>
+    <div id="hint-box"></div>
+
+    <!-- 破關後才顯示的城市歷史與美食小知識 -->
+    <div id="city-lore"></div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>

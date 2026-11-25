@@ -3,90 +3,289 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>城市尋寶｜實境解謎探索地圖</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <title>手繪城市尋寶｜互動解謎旅遊地圖</title>
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: #fdfaf5; color: #4a3f35; }
-    
-    /* 頂部狀態列 */
-    #header {
-      padding: 12px 16px; background: #fff8eb; border-bottom: 2px solid #f3d9b1;
-      display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1000;
+    * { box-sizing: border-box; user-select: none; }
+    body {
+      margin: 0;
+      font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: #f5ebd6;
+      color: #4a3b2c;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
     }
-    .title { font-weight: bold; font-size: 16px; color: #92400e; }
-    .badge { background: #fef3c7; border: 1px solid #f59e0b; padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; color: #b45309; }
-    
-    #map { height: calc(100vh - 54px); width: 100%; }
 
-    /* 底部／中央解謎任務卡片 */
-    #quest-modal {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-      width: 92%; max-width: 440px; background: #ffffff; border-radius: 16px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.18); padding: 20px; z-index: 2000;
-      border: 2px solid #fde68a; display: none; max-height: 80vh; overflow-y: auto;
+    /* 頂部手繪木牌風格狀態列 */
+    #header {
+      padding: 12px 18px;
+      background: #fff9ed;
+      border-bottom: 3px dashed #d9b98c;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      box-shadow: 0 4px 10px rgba(139, 98, 52, 0.08);
     }
-    .quest-tag { display: inline-block; background: #ffedd5; color: #c2410c; font-size: 12px; font-weight: bold; padding: 3px 8px; border-radius: 6px; margin-bottom: 6px; }
-    .quest-title { margin: 0 0 10px 0; font-size: 19px; color: #78350f; }
-    .quest-story { font-size: 14px; line-height: 1.6; background: #fffbeb; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #f59e0b; }
-    .quest-question { font-weight: bold; font-size: 15px; margin-bottom: 10px; color: #1f2937; }
+    .title-area { display: flex; align-items: center; gap: 8px; }
+    .game-title { font-weight: 900; font-size: 17px; color: #7c3f11; letter-spacing: 0.5px; }
+    .badge {
+      background: #ffedd5;
+      border: 2px solid #f59e0b;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: bold;
+      color: #b45309;
+    }
+    .reset-btn {
+      font-size: 12px; color: #a1887f; background: #f3e8d2;
+      border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+    }
+
+    /* 手繪地圖主舞台（支援手機滑動與置中） */
+    #map-viewport {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      background-image: radial-gradient(#e6d5b8 1.5px, transparent 1.5px);
+      background-size: 20px 20px;
+    }
+
+    /* 手繪畫布容器 */
+    #illustrated-map {
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      aspect-ratio: 3 / 4;
+      background: #fdf6e7;
+      border: 6px solid #fffdf9;
+      border-radius: 24px;
+      box-shadow: 0 12px 30px rgba(101, 67, 33, 0.18), inset 0 0 40px rgba(222, 194, 148, 0.45);
+      overflow: hidden;
+    }
+
+    /* 手繪地標按鈕 */
+    .map-node {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.25s ease;
+      z-index: 10;
+    }
+    .map-node:hover { transform: translate(-50%, -55%) scale(1.06); }
+
+    .node-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 3px solid #d97706;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 30px;
+      box-shadow: 0 6px 14px rgba(180, 83, 9, 0.22);
+      position: relative;
+    }
+
+    /* 當前關卡上下彈跳動畫 */
+    .node-active .node-icon {
+      border-color: #ea580c;
+      background: #fffbeb;
+      animation: bounce 1.6s infinite ease-in-out;
+      box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.25), 0 8px 16px rgba(180, 83, 9, 0.3);
+    }
+
+    /* 尚未解鎖的迷霧狀態 */
+    .node-locked { cursor: not-allowed; opacity: 0.75; }
+    .node-locked .node-icon {
+      background: #e5dec9;
+      border: 3px dashed #a89f91;
+      color: #8c8275;
+      box-shadow: none;
+    }
+
+    /* 已破關的印章效果 */
+    .node-cleared .node-icon {
+      border-color: #16a34a;
+      background: #f0fdf4;
+    }
+    .stamp-badge {
+      position: absolute;
+      top: -6px;
+      right: -10px;
+      background: #dc2626;
+      color: #fff;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1.5px solid #fff;
+      transform: rotate(12deg);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .node-label {
+      margin-top: 6px;
+      background: rgba(255, 253, 247, 0.95);
+      border: 1.5px solid #e2c699;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      color: #5c4028;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    /* 解謎任務卡片彈窗 */
+    #modal-backdrop {
+      position: fixed; inset: 0; background: rgba(62, 43, 24, 0.45);
+      display: none; justify-content: center; align-items: center; z-index: 500; padding: 16px;
+    }
+    #quest-modal {
+      width: 100%; max-width: 420px; background: #fffdf8; border-radius: 22px;
+      border: 3px solid #f3d098; box-shadow: 0 16px 36px rgba(0,0,0,0.25);
+      padding: 22px; position: relative; max-height: 85vh; overflow-y: auto;
+    }
+    .quest-tag {
+      display: inline-block; background: #ffedd5; color: #c2410c;
+      font-size: 12px; font-weight: bold; padding: 4px 10px; border-radius: 8px; margin-bottom: 8px;
+    }
+    .quest-title { margin: 0 0 10px 0; font-size: 20px; color: #78350f; }
+    .btn-nav {
+      background: #e0f2fe; color: #0369a1; font-size: 12px; padding: 6px 12px;
+      text-decoration: none; border-radius: 10px; display: inline-block; font-weight: bold; margin-bottom: 12px;
+    }
+    .quest-story {
+      font-size: 14px; line-height: 1.65; background: #fef9ec; padding: 12px 14px;
+      border-radius: 12px; margin-bottom: 14px; border-left: 4px solid #f59e0b; color: #5c4938;
+    }
+    .quest-question { font-weight: bold; font-size: 15px; margin-bottom: 12px; color: #292524; line-height: 1.5; }
     
-    .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
+    .input-group { display: flex; gap: 8px; margin-bottom: 12px; }
     input[type="text"] {
-      flex: 1; padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 15px; outline: none;
+      flex: 1; padding: 11px 14px; border: 2px solid #e5d5bc; border-radius: 12px;
+      font-size: 15px; outline: none; background: #fff; user-select: text;
     }
     input[type="text"]:focus { border-color: #f59e0b; }
     
-    button { border: none; border-radius: 8px; padding: 10px 14px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    .btn-submit { background: #f59e0b; color: white; }
+    .btn-submit {
+      background: #f59e0b; color: white; border: none; border-radius: 12px;
+      padding: 0 18px; font-size: 15px; font-weight: bold; cursor: pointer;
+    }
     .btn-submit:hover { background: #d97706; }
-    .btn-hint { background: #f3f4f6; color: #4b5563; font-size: 13px; padding: 6px 10px; }
-    .btn-nav { background: #e0f2fe; color: #0369a1; font-size: 13px; padding: 6px 10px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold; }
-    .btn-close { position: absolute; top: 14px; right: 14px; background: transparent; color: #9ca3af; font-size: 18px; padding: 4px 8px; }
-    
-    #hint-box { font-size: 13px; color: #b45309; background: #fef3c7; padding: 8px 10px; border-radius: 6px; margin-top: 8px; display: none; }
-    #city-lore { font-size: 14px; line-height: 1.6; color: #065f46; background: #ecfdf5; border: 1px solid #a7f3d0; padding: 12px; border-radius: 8px; margin-top: 12px; display: none; }
-    .reset-btn { font-size: 11px; color: #9ca3af; background: none; text-decoration: underline; margin-left: 8px; padding: 0; }
+    .btn-hint {
+      background: #f5efe6; color: #786655; border: 1px solid #e2d5c1;
+      border-radius: 10px; font-size: 13px; padding: 6px 12px; cursor: pointer;
+    }
+    .btn-close {
+      position: absolute; top: 16px; right: 16px; background: #f3ece0; border: none;
+      border-radius: 50%; width: 32px; height: 32px; color: #786655; font-size: 16px; cursor: pointer;
+    }
+    #hint-box {
+      font-size: 13px; color: #92400e; background: #fef3c7; padding: 10px 12px;
+      border-radius: 10px; margin-top: 10px; display: none; line-height: 1.5;
+    }
+    #city-lore {
+      font-size: 14px; line-height: 1.65; color: #065f46; background: #ecfdf5;
+      border: 2px solid #a7f3d0; padding: 14px; border-radius: 12px; margin-top: 12px; display: none;
+    }
   </style>
 </head>
 <body>
 
   <div id="header">
-    <div>
-      <span class="title">🧭 中壢時光尋寶記</span>
+    <div class="title-area">
+      <span class="game-title">🗺️ 澗仔壢尋寶手札</span>
       <button class="reset-btn" onclick="resetGame()">重玩</button>
     </div>
-    <span class="badge">進度：<span id="score">0</span> / <span id="total">0</span> 關</span>
+    <span class="badge">收集徽章：<span id="score">0</span> / <span id="total">0</span></span>
   </div>
 
-  <div id="map"></div>
+  <div id="map-viewport">
+    <div id="illustrated-map">
+      <!-- 手繪插畫風景 SVG 背景（老街溪、小橋、綠樹、手繪指南針與尋寶虛線） -->
+      <svg viewBox="0 0 300 400" width="100%" height="100%" preserveAspectRatio="none" style="position:absolute; inset:0; pointer-events:none;">
+        <!-- 溫暖水彩色塊裝飾 -->
+        <circle cx="55" cy="70" r="45" fill="#e8f3d6" opacity="0.7" />
+        <circle cx="250" cy="180" r="55" fill="#fce8d5" opacity="0.6" />
+        <circle cx="70" cy="310" r="50" fill="#e8f3d6" opacity="0.7" />
 
-  <!-- 解謎任務卡片 -->
-  <div id="quest-modal">
-    <button class="btn-close" onclick="closeModal()">✕</button>
-    <div class="quest-tag" id="q-stage">關卡 1</div>
-    <h3 class="quest-title" id="q-title">關卡名稱</h3>
-    <div style="margin-bottom: 10px;">
-      <a id="q-nav" class="btn-nav" href="#" target="_blank">📍 開啟 Google 地圖導航到此處</a>
+        <!-- 手繪老街溪蜿蜒河流 -->
+        <path d="M -10,120 Q 90,100 140,165 T 310,210" fill="none" stroke="#bce0ea" stroke-width="26" stroke-linecap="round" />
+        <path d="M -10,120 Q 90,100 140,165 T 310,210" fill="none" stroke="#93c5d6" stroke-width="2" stroke-dasharray="6,6" />
+
+        <!-- 手繪小木橋 -->
+        <rect x="122" y="142" width="28" height="18" rx="3" transform="rotate(35 136 151)" fill="#d4a373" stroke="#8c5a2b" stroke-width="2" />
+
+        <!-- 手繪小樹與雲朵插畫 -->
+        <g fill="#8ab17d" stroke="#588157" stroke-width="1.5">
+          <circle cx="42" cy="65" r="10" /><circle cx="53" cy="60" r="12" /><circle cx="62" cy="68" r="9" />
+          <circle cx="245" cy="80" r="11" /><circle cx="258" cy="84" r="9" />
+          <circle cx="48" cy="275" r="12" /><circle cx="62" cy="280" r="10" />
+          <circle cx="240" cy="340" r="13" /><circle cx="255" cy="335" r="10" />
+        </g>
+
+        <!-- 手繪指南針裝飾 -->
+        <g transform="translate(252, 42)" opacity="0.75">
+          <circle cx="0" cy="0" r="18" fill="#fffdf8" stroke="#c89d66" stroke-width="2" />
+          <polygon points="0,-13 4,0 0,13 -4,0" fill="#d97706" />
+          <text x="0" y="-21" font-size="7" text-anchor="middle" fill="#8c5a2b" font-weight="bold">N</text>
+        </g>
+
+        <!-- 手繪標題緞帶 -->
+        <rect x="18" y="16" width="128" height="26" rx="13" fill="#fff8eb" stroke="#d9b98c" stroke-width="1.5" />
+        <text x="82" y="33" font-size="10" text-anchor="middle" fill="#8c5a2b" font-weight="bold">✦ 中壢老街探索路線 ✦</text>
+
+        <!-- 關卡之間的尋寶虛線路徑（動態變色） -->
+        <path id="path-1-2" d="M 84,104 Q 160,120 216,204" fill="none" stroke="#cbbba0" stroke-width="3.5" stroke-dasharray="7,7" stroke-linecap="round" />
+        <path id="path-2-3" d="M 216,204 Q 170,280 120,324" fill="none" stroke="#cbbba0" stroke-width="3.5" stroke-dasharray="7,7" stroke-linecap="round" />
+      </svg>
+
+      <!-- 關卡地標會由 JS 動態畫在這裡 -->
+      <div id="nodes-container"></div>
     </div>
-    <div class="quest-story" id="q-story">情境故事...</div>
-    <div class="quest-question" id="q-question">謎題題目...</div>
-
-    <div class="input-group" id="answer-area">
-      <input type="text" id="q-input" placeholder="請觀察現場後輸入答案..." />
-      <button class="btn-submit" onclick="checkAnswer()">解鎖</button>
-    </div>
-
-    <div>
-      <button class="btn-hint" id="hint-btn" onclick="showNextHint()">💡 需要提示嗎？</button>
-    </div>
-    <div id="hint-box"></div>
-
-    <!-- 破關後才顯示的城市歷史與美食小知識 -->
-    <div id="city-lore"></div>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- 解謎任務彈窗 -->
+  <div id="modal-backdrop">
+    <div id="quest-modal">
+      <button class="btn-close" onclick="closeModal()">✕</button>
+      <div class="quest-tag" id="q-stage">關卡 1</div>
+      <h3 class="quest-title" id="q-title">關卡名稱</h3>
+      <div>
+        <a id="q-nav" class="btn-nav" href="#" target="_blank">📍 帶我走到現場（Google 導航）</a>
+      </div>
+      <div class="quest-story" id="q-story">情境故事...</div>
+      <div class="quest-question" id="q-question">謎題題目...</div>
+
+      <div class="input-group" id="answer-area">
+        <input type="text" id="q-input" placeholder="輸入你找到的線索答案..." />
+        <button class="btn-submit" onclick="checkAnswer()">破關</button>
+      </div>
+
+      <div>
+        <button class="btn-hint" id="hint-btn" onclick="showNextHint()">💡 偷看錦囊提示</button>
+      </div>
+      <div id="hint-box"></div>
+      <div id="city-lore"></div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>
